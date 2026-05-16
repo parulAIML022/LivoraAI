@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Heart } from "lucide-react";
-import medicalHero from "@/assets/medical-hero.jpg";
+const medicalHero = "/placeholder.svg";
 
 const Home = () => {
   return (

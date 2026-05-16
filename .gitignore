@@ -11,6 +11,17 @@ node_modules
 dist
 dist-ssr
 *.local
+.env
+.env.local
+
+# Backend
+livora-backend/.env
+livora-backend/venv/
+livora-backend/uploads/
+livora-backend/__pycache__/
+livora-backend/**/__pycache__/
+*.pyc
+.pytest_cache/
 
 # Editor directories and files
 .vscode/*

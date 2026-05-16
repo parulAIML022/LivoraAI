@@ -1,5 +1,10 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { toast } from "sonner";
+import { useAuth, dashboardPathForRole } from "@/contexts/AuthContext";
+import { ApiError } from "@/lib/api";
+import { toApiRole } from "@/services/authService";
+import { saveRoleProfileAfterSignup } from "@/lib/saveRoleProfile";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -28,6 +33,14 @@ const SignUp = () => {
   });
 
   const navigate = useNavigate();
+  const { signup, session, isLoading: authLoading } = useAuth();
+
+  useEffect(() => {
+    if (!authLoading && session) {
+      navigate(dashboardPathForRole(session.role), { replace: true });
+    }
+  }, [authLoading, session, navigate]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const roles = [
     { id: "donor" as UserRole, title: "Organ Donor", description: "Register to save lives by donating organs", icon: Heart, color: "from-cyan-400 to-blue-500" },
@@ -40,17 +53,41 @@ const SignUp = () => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log("Form submitted:", { role: selectedRole, ...formData });
 
-    // Save selected role in localStorage
-    if (selectedRole) {
-      localStorage.setItem("userRole", selectedRole);
+    if (!selectedRole) {
+      toast.error("Please select a role");
+      return;
+    }
+    if (formData.password !== formData.confirmPassword) {
+      toast.error("Passwords do not match");
+      return;
+    }
+    if (formData.password.length < 8) {
+      toast.error("Password must be at least 8 characters");
+      return;
     }
 
-    // Navigate to OTP page
-    navigate("/otp");
+    setIsSubmitting(true);
+    try {
+      await signup({
+        fullName: formData.name,
+        email: formData.email,
+        password: formData.password,
+        role: selectedRole,
+      });
+      await saveRoleProfileAfterSignup(selectedRole, formData);
+      toast.success("Account created successfully");
+      const apiRole = toApiRole(selectedRole);
+      navigate(dashboardPathForRole(apiRole));
+    } catch (err) {
+      const message =
+        err instanceof ApiError ? err.message : "Registration failed. Please try again.";
+      toast.error(message);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const renderRoleSpecificFields = () => {
@@ -329,8 +366,12 @@ const SignUp = () => {
                 {renderRoleSpecificFields()}
 
                 <div className="flex flex-col sm:flex-row gap-4 pt-6">
-                  <Button type="submit" className="bg-gradient-to-r from-blue-500 to-cyan-500 flex-1 text-white font-semibold py-3 rounded-xl hover:shadow-lg">
-                    Create Account
+                  <Button
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="bg-gradient-to-r from-blue-500 to-cyan-500 flex-1 text-white font-semibold py-3 rounded-xl hover:shadow-lg"
+                  >
+                    {isSubmitting ? "Creating account..." : "Create Account"}
                     <Stethoscope className="ml-2 h-5 w-5" />
                   </Button>
                 </div>

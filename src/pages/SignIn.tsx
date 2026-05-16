@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -7,6 +8,8 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Heart, LogIn, Eye, EyeOff } from "lucide-react";
+import { useAuth, dashboardPathForRole } from "@/contexts/AuthContext";
+import { ApiError } from "@/lib/api";
 
 type UserRole = "donor" | "recipient" | "hospital" | "coordinator";
 
@@ -18,42 +21,44 @@ const SignIn = () => {
     rememberMe: false
   });
   const [showPassword, setShowPassword] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const navigate = useNavigate();
+  const { login, session, isLoading: authLoading } = useAuth();
+
+  useEffect(() => {
+    if (!authLoading && session) {
+      navigate(dashboardPathForRole(session.role), { replace: true });
+    }
+  }, [authLoading, session, navigate]);
 
   const handleInputChange = (field: string, value: string | boolean) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!formData.role) {
-      alert("Please select your role before signing in.");
+      toast.error("Please select your role before signing in.");
       return;
     }
 
-    // Save role for consistent redirection logic
-    localStorage.setItem("userRole", formData.role);
-
-    console.log("Sign in attempt:", formData);
-
-    // Redirect based on selected role
-    switch (formData.role) {
-      case "donor":
-        navigate("/donor-dashboard");
-        break;
-      case "recipient":
-        navigate("/recipient-dashboard");
-        break;
-      case "hospital":
-        navigate("/hospital-dashboard");
-        break;
-      case "coordinator":
-        navigate("/coordinator-dashboard");
-        break;
-      default:
-        navigate("/");
-        break;
+    setIsSubmitting(true);
+    try {
+      await login(
+        { email: formData.email, password: formData.password },
+        formData.role
+      );
+      toast.success("Signed in successfully");
+      navigate(dashboardPathForRole(
+        formData.role === "coordinator" ? "admin" : formData.role
+      ));
+    } catch (err) {
+      const message =
+        err instanceof ApiError ? err.message : "Sign in failed. Please try again.";
+      toast.error(message);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -161,8 +166,8 @@ const SignIn = () => {
                 </Link>
               </div>
 
-              <Button type="submit" className="w-full btn-hero">
-                Sign In
+              <Button type="submit" className="w-full btn-hero" disabled={isSubmitting}>
+                {isSubmitting ? "Signing in..." : "Sign In"}
                 <LogIn className="ml-2 h-5 w-5" />
               </Button>
 

@@ -1,8 +1,14 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { toast } from "sonner";
+import { useAuth } from "@/contexts/AuthContext";
+import { ApiError } from "@/lib/api";
+import { saveRoleProfileAfterSignup } from "@/lib/saveRoleProfile";
 
 const Register = () => {
   const navigate = useNavigate();
+  const { signup } = useAuth();
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [formData, setFormData] = useState({
     fullName: "",
@@ -21,12 +27,43 @@ const Register = () => {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    console.log("Form Submitted:", formData);
 
-    // Later: send to backend
-    navigate("/otp"); // ✅ go to OTP page after submitting
+    if (formData.password !== formData.confirmPassword) {
+      toast.error("Passwords do not match");
+      return;
+    }
+    if (formData.password.length < 8) {
+      toast.error("Password must be at least 8 characters");
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      await signup({
+        fullName: formData.fullName,
+        email: formData.email,
+        password: formData.password,
+        role: "donor",
+      });
+      await saveRoleProfileAfterSignup("donor", {
+        phone: formData.phone,
+        location: formData.location,
+        bloodGroup: formData.bloodGroup,
+        organType: formData.organ,
+        medicalHistory: formData.history,
+        hospitalName: "",
+      });
+      toast.success("Donor account created");
+      navigate("/donor-dashboard");
+    } catch (err) {
+      const message =
+        err instanceof ApiError ? err.message : "Registration failed.";
+      toast.error(message);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -179,9 +216,10 @@ const Register = () => {
           <div className="md:col-span-2 mt-4">
             <button
               type="submit"
-              className="w-full bg-blue-500 text-white py-3 rounded-full font-semibold hover:bg-blue-600"
+              disabled={isSubmitting}
+              className="w-full bg-blue-500 text-white py-3 rounded-full font-semibold hover:bg-blue-600 disabled:opacity-60"
             >
-              Create Account
+              {isSubmitting ? "Creating account..." : "Create Account"}
             </button>
           </div>
         </form>

@@ -1,10 +1,18 @@
-import { useState, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useAuth, dashboardPathForRole } from "@/contexts/AuthContext";
 
 export default function Otp() {
   const [otp, setOtp] = useState<string[]>(["", "", "", "", "", ""]);
   const inputsRef = useRef<Array<HTMLInputElement | null>>([]);
   const navigate = useNavigate();
+  const { session, isLoading } = useAuth();
+
+  useEffect(() => {
+    if (!isLoading && session) {
+      navigate(dashboardPathForRole(session.role), { replace: true });
+    }
+  }, [session, isLoading, navigate]);
 
   const handleChange = (value: string, index: number) => {
     if (/^\d?$/.test(value)) {
@@ -25,27 +33,7 @@ export default function Otp() {
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-
-    // Retrieve user role from localStorage
-    const userRole = localStorage.getItem("userRole");
-
-    // Redirect to appropriate dashboard
-    switch (userRole) {
-      case "donor":
-        navigate("/donor-dashboard");
-        break;
-      case "recipient":
-        navigate("/recipient-dashboard");
-        break;
-      case "hospital":
-        navigate("/hospital-dashboard");
-        break;
-      case "coordinator":
-        navigate("/coordinator-dashboard");
-        break;
-      default:
-        navigate("/");
-    }
+    navigate("/signin");
   };
 
   return (
@@ -53,8 +41,8 @@ export default function Otp() {
       <div className="bg-white shadow-md rounded-lg p-8 w-[400px] text-center">
         <h2 className="text-2xl font-bold text-green-600 mb-4">Verify OTP</h2>
         <p className="text-gray-600 mb-6">
-          We have sent a 6-digit OTP to your registered email/phone.
-          Please enter it below to continue.
+          Email verification will be enabled in a later phase. Continue to sign in
+          with your account.
         </p>
 
         <form onSubmit={handleSubmit}>
@@ -77,16 +65,9 @@ export default function Otp() {
             type="submit"
             className="w-full bg-green-600 text-white py-2 rounded-lg hover:bg-green-700"
           >
-            Verify
+            Continue to Sign In
           </button>
         </form>
-
-        <button
-          onClick={() => alert("OTP resent")}
-          className="mt-4 text-blue-600 hover:underline"
-        >
-          Resend OTP
-        </button>
       </div>
     </div>
   );
