@@ -4,8 +4,12 @@ from pydantic import BaseModel, Field
 
 RecipientStatus = Literal["pending", "verified", "active", "inactive"]
 
+VALID_RECIPIENT_STATUSES = frozenset({"pending", "verified", "active", "inactive"})
+
 
 class RecipientUpdateRequest(BaseModel):
+    """Recipient self-service fields — approval status is never accepted here."""
+
     organNeeded: str | None = None
     organs: list[str] | None = None
     bloodGroup: str | None = None
@@ -14,7 +18,12 @@ class RecipientUpdateRequest(BaseModel):
     phone: str | None = None
     address: str | None = None
     medicalHistory: str | None = None
-    status: RecipientStatus | None = None
+
+
+class RecipientStatusUpdateRequest(BaseModel):
+    """Hospital/admin only — updates recipient approval status."""
+
+    status: RecipientStatus
 
 
 class RecipientResponse(BaseModel):

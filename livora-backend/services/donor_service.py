@@ -8,7 +8,7 @@ from fastapi import HTTPException, UploadFile, status
 from config import ALLOWED_UPLOAD_EXTENSIONS, MAX_UPLOAD_SIZE_MB, UPLOAD_DIR
 from database.connection import get_donors_collection, get_users_collection
 from models.donor import donor_document, serialize_donor
-from schemas.donor import DonorUpdateRequest
+from schemas.donor import DonorStatus, DonorUpdateRequest, VALID_DONOR_STATUSES
 
 
 def _ensure_donor_profile(user_id: str) -> dict:
@@ -104,3 +104,72 @@ def upload_donor_document(user_id: str, file: UploadFile, base_url: str = "") ->
         },
     )
     return get_donor_profile(user_id, base_url=base_url)
+
+
+def update_donor_status_by_user_id(
+    target_user_id: str,
+    new_status: DonorStatus,
+    base_url: str = "",
+) -> dict:
+    """Hospital/admin: set donor approval status. Donors cannot call this."""
+    if new_status not in VALID_DONOR_STATUSES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid status value",
+        )
+
+    donors = get_donors_collection()
+    donor = donors.find_one({"userId": target_user_id})
+    if not donor:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Donor profile not found",
+        )
+
+    old_status = donor.get("status", "pending")
+    donors.update_one(
+        {"userId": target_user_id},
+        {
+            "$set": {
+                "status": new_status,
+                "updatedAt": datetime.now(timezone.utc),
+            }
+        },
+    )
+
+    if old_status != new_status:
+        _notify_donor_status_change(target_user_id, new_status)
+
+    return serialize_donor(donors.find_one({"userId": target_user_id}), base_url=base_url)
+
+
+def _notify_donor_status_change(user_id: str, new_status: str) -> None:
+    from services.notification_service import create_notification
+
+    messages = {
+        "verified": (
+            "Donor profile verified",
+            "Your donor registration has been verified. You may receive match suggestions.",
+            "donor_approved",
+        ),
+        "active": (
+            "Donor account active",
+            "Your donor profile is now active and eligible for matching.",
+            "donor_approved",
+        ),
+        "inactive": (
+            "Donor account inactive",
+            "Your donor profile has been marked inactive.",
+            "status_update",
+        ),
+        "pending": (
+            "Donor review pending",
+            "Your donor profile is awaiting hospital review.",
+            "status_update",
+        ),
+    }
+    title, message, ntype = messages.get(
+        new_status,
+        ("Donor status updated", f"Your donor status is now {new_status}.", "status_update"),
+    )
+    create_notification(user_id, title, message, ntype, {"status": new_status})

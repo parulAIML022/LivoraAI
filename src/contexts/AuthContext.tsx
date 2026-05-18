@@ -19,12 +19,14 @@ import {
   logout as apiLogout,
   signup as apiSignup,
   tokenToSession,
+  type AuthUser,
   type LoginPayload,
   type SignupPayload,
 } from "@/services/authService";
 import { ApiError } from "@/lib/api";
 
 interface AuthContextValue {
+  user: AuthUser | null;
   session: AuthSession | null;
   isLoading: boolean;
   login: (payload: LoginPayload, expectedRole?: string) => Promise<void>;
@@ -35,28 +37,36 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+function sessionFromUser(user: AuthUser, token: string): AuthSession {
+  return {
+    token,
+    role: user.role,
+    userId: user.userId,
+    fullName: user.fullName,
+  };
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<AuthSession | null>(() => getSession());
+  const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   const refreshUser = useCallback(async () => {
     const current = getSession();
     if (!current?.token) {
+      setUser(null);
       setSession(null);
       return;
     }
     try {
-      const user = await getMe();
-      const updated: AuthSession = {
-        ...current,
-        fullName: user.fullName,
-        role: user.role,
-        userId: user.userId,
-      };
+      const me = await getMe();
+      setUser(me);
+      const updated = sessionFromUser(me, current.token);
       saveSession(updated);
       setSession(updated);
     } catch {
       clearSession();
+      setUser(null);
       setSession(null);
     }
   }, []);
@@ -81,6 +91,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const next = tokenToSession(data);
       saveSession(next);
       setSession(next);
+      const me = await getMe();
+      setUser(me);
+      saveSession(sessionFromUser(me, next.token));
+      setSession(sessionFromUser(me, next.token));
     },
     []
   );
@@ -90,6 +104,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const next = tokenToSession(data);
     saveSession(next);
     setSession(next);
+    const me = await getMe();
+    setUser(me);
+    const synced = sessionFromUser(me, next.token);
+    saveSession(synced);
+    setSession(synced);
   }, []);
 
   const logout = useCallback(async () => {
@@ -99,11 +118,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       /* token may already be invalid */
     }
     clearSession();
+    setUser(null);
     setSession(null);
   }, []);
 
   const value = useMemo(
     () => ({
+      user,
       session,
       isLoading,
       login,
@@ -111,7 +132,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       logout,
       refreshUser,
     }),
-    [session, isLoading, login, signup, logout, refreshUser]
+    [user, session, isLoading, login, signup, logout, refreshUser]
   );
 
   return (

@@ -5,6 +5,7 @@ from pymongo.errors import DuplicateKeyError
 from database.connection import (
     get_donors_collection,
     get_hospitals_collection,
+    get_notifications_collection,
     get_recipients_collection,
     get_users_collection,
 )
@@ -20,6 +21,9 @@ def ensure_indexes() -> None:
     get_donors_collection().create_index("userId", unique=True)
     get_recipients_collection().create_index("userId", unique=True)
     get_hospitals_collection().create_index("userId", unique=True)
+    notifications = get_notifications_collection()
+    notifications.create_index([("userId", 1), ("createdAt", -1)])
+    notifications.create_index([("userId", 1), ("read", 1)])
 
 
 def signup_user(payload: SignupRequest) -> TokenResponse:

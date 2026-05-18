@@ -1,29 +1,59 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import DashboardNotificationBell from "@/components/DashboardNotificationBell";
+import DashboardUserNav from "@/components/DashboardUserNav";
+import { useDashboardSession } from "@/hooks/useDashboardSession";
+import { capitalizeStatus, getInitials } from "@/lib/userDisplay";
+import { getMyMatches } from "@/services/matchingService";
+import { getNotifications } from "@/services/notificationService";
+import { getMyRecipientProfile } from "@/services/recipientService";
 
 import {
-  Bell,
   Search,
-  User,
   Heart,
   Users,
   Activity,
   MapPin,
   MessageCircle,
   Settings,
-  LogOut,
   Menu,
-  X
+  X,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+
+function formatNotificationTime(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 60) return `${Math.max(mins, 1)}m`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h`;
+  return `${Math.floor(hours / 24)}d`;
+}
 
 const Dashboard = () => {
   const navigate = useNavigate();
+  const { fullName, roleLabel } = useDashboardSession();
+  const { data: profile } = useQuery({
+    queryKey: ["recipient-profile"],
+    queryFn: getMyRecipientProfile,
+  });
+
+  const { data: matching } = useQuery({
+    queryKey: ["matching-me"],
+    queryFn: getMyMatches,
+    refetchOnMount: "always",
+  });
+
+  const { data: notifications } = useQuery({
+    queryKey: ["notifications"],
+    queryFn: () => getNotifications(5),
+  });
 
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("home");
@@ -37,49 +67,27 @@ const Dashboard = () => {
     { id: "profile", label: "Profile & Settings", icon: Settings },
   ];
 
-  const mockMatches = [
-    {
-      id: 1,
-      initials: "JD",
-      bloodGroup: "O+",
-      compatibility: 95,
-      location: "Delhi",
-      distance: "2.5 km",
-      urgency: "urgent"
-    },
-    {
-      id: 2,
-      initials: "SM",
-      bloodGroup: "O+",
-      compatibility: 87,
-      location: "Mumbai",
-      distance: "15 km",
-      urgency: "normal"
-    },
-    {
-      id: 3,
-      initials: "RK",
-      bloodGroup: "O-",
-      compatibility: 92,
-      location: "Bangalore",
-      distance: "8 km",
-      urgency: "urgent"
-    }
-  ];
+  const matches = matching?.matches ?? [];
+  const stats = matching?.stats;
+  const urgentAlert = matching?.urgentAlert;
 
-  // ✅ PROFILE NAVIGATION
   const goToProfile = () => {
     navigate("/profile");
   };
 
+  const organLabel =
+    profile?.organNeeded ||
+    (profile?.organs?.length ? profile.organs.join(", ") : null) ||
+    "organ";
+
+  const isVerified =
+    profile?.status === "verified" || profile?.status === "active";
+
   return (
     <div className="min-h-screen bg-background">
 
-      {/* Top Navigation */}
       <header className="bg-white border-b border-border sticky top-0 z-50">
         <div className="flex items-center justify-between px-4 py-3">
-
-          {/* Left - Logo */}
           <div className="flex items-center space-x-2">
             <Button
               variant="ghost"
@@ -96,7 +104,6 @@ const Dashboard = () => {
             <span className="text-xl font-bold text-primary">Livora</span>
           </div>
 
-          {/* Center - Search */}
           <div className="hidden md:flex items-center flex-1 max-w-lg mx-8">
             <div className="relative w-full">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
@@ -104,39 +111,17 @@ const Dashboard = () => {
             </div>
           </div>
 
-          {/* Right - Notifications & User */}
           <div className="flex items-center space-x-4">
-
-            {/* Notifications */}
-            <Button variant="ghost" size="icon" className="relative">
-              <Bell className="h-5 w-5" />
-              <span className="absolute -top-1 -right-1 bg-destructive text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
-                3
-              </span>
-            </Button>
-
-            {/* Profile (click → open profile page) */}
-            <div className="flex items-center space-x-2 cursor-pointer" onClick={goToProfile}>
-              <Avatar className="h-8 w-8">
-                <AvatarImage src="" />
-                <AvatarFallback className="bg-primary text-white">MA</AvatarFallback>
-              </Avatar>
-              <div className="hidden md:block">
-                <p className="text-sm font-medium">Mansi Awasthi</p>
-                <p className="text-xs text-muted-foreground">Recipient</p>
-              </div>
-            </div>
-
+            <DashboardNotificationBell />
+            <DashboardUserNav onProfileClick={goToProfile} />
           </div>
         </div>
       </header>
 
       <div className="flex">
-
-        {/* Left Sidebar */}
         <aside className="hidden md:block w-64 bg-white border-r border-border min-h-screen">
           <nav className="p-4 space-y-2">
-            {sidebarItems.map(item => {
+            {sidebarItems.map((item) => {
               const Icon = item.icon;
               return (
                 <Button
@@ -156,19 +141,16 @@ const Dashboard = () => {
           </nav>
         </aside>
 
-        {/* Mobile Sidebar */}
         {isMobileMenuOpen && (
           <div className="md:hidden fixed inset-0 z-40">
             <div
               className="fixed inset-0 bg-black/50"
               onClick={() => setIsMobileMenuOpen(false)}
             />
-
             <aside className="fixed left-0 top-16 w-64 bg-white border-r border-border h-full">
               <nav className="p-4 space-y-2">
-                {sidebarItems.map(item => {
+                {sidebarItems.map((item) => {
                   const Icon = item.icon;
-
                   return (
                     <Button
                       key={item.id}
@@ -190,21 +172,33 @@ const Dashboard = () => {
           </div>
         )}
 
-        {/* MAIN CONTENT (unchanged UI) */}
         <main className="flex-1 p-4 md:p-6">
-
-          {/* Welcome Banner */}
           <Card className="mb-6 bg-gradient-to-r from-primary/10 to-secondary/10 border-primary/20">
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
                   <h1 className="text-2xl font-bold text-primary mb-2">
-                    Hi, Mansi 👋
+                    Hi, {fullName || "there"} 👋
                   </h1>
-                  <p className="text-muted-foreground mb-2">You're waiting for a Kidney match.</p>
-                  <Badge variant="destructive" className="bg-orange-100 text-orange-800 border-orange-200">
-                    Urgent
-                  </Badge>
+                  <p className="text-muted-foreground mb-2">
+                    {roleLabel}
+                    {profile
+                      ? ` · Waiting for a ${organLabel} match`
+                      : " · Complete your profile to improve matching"}
+                    {profile?.bloodGroup ? ` · Blood group ${profile.bloodGroup}` : ""}
+                  </p>
+                  {profile?.status && (
+                    <Badge
+                      variant="secondary"
+                      className={
+                        profile.status === "pending"
+                          ? "bg-orange-100 text-orange-800 border-orange-200"
+                          : ""
+                      }
+                    >
+                      {capitalizeStatus(profile.status)}
+                    </Badge>
+                  )}
                 </div>
                 <div className="hidden md:block">
                   <div className="bg-white/80 rounded-full p-4">
@@ -215,22 +209,21 @@ const Dashboard = () => {
             </CardContent>
           </Card>
 
-          {/* Real-time Alert */}
-          <Card className="mb-6 border-orange-200 bg-orange-50">
-            <CardContent className="p-4">
-              <div className="flex items-center space-x-2 text-orange-800">
-                <span>🚨</span>
-                <span className="font-medium">Urgent match available in Delhi Hospital</span>
-                <Button size="sm" className="ml-auto">
-                  View Details
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+          {urgentAlert && (
+            <Card className="mb-6 border-orange-200 bg-orange-50">
+              <CardContent className="p-4">
+                <div className="flex items-center space-x-2 text-orange-800">
+                  <span>🚨</span>
+                  <span className="font-medium">{urgentAlert.message}</span>
+                  <Button size="sm" className="ml-auto">
+                    View Details
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
-          {/* KPI Cards */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -238,8 +231,12 @@ const Dashboard = () => {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-primary">12</div>
-                <p className="text-xs text-muted-foreground">+3 new this week</p>
+                <div className="text-2xl font-bold text-primary">
+                  {stats?.totalMatches ?? 0}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  +{stats?.newMatchesThisWeek ?? 0} new this week
+                </p>
               </CardContent>
             </Card>
 
@@ -250,7 +247,9 @@ const Dashboard = () => {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-secondary">8</div>
+                <div className="text-2xl font-bold text-secondary">
+                  {stats?.nearbyMatches ?? 0}
+                </div>
                 <p className="text-xs text-muted-foreground">Within 50km radius</p>
               </CardContent>
             </Card>
@@ -262,14 +261,18 @@ const Dashboard = () => {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-accent">89%</div>
-                <p className="text-xs text-muted-foreground">Excellent compatibility</p>
+                <div className="text-2xl font-bold text-accent">
+                  {stats?.averageCompatibility ?? 0}%
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {(stats?.averageCompatibility ?? 0) >= 80
+                    ? "Excellent compatibility"
+                    : "Based on live donor data"}
+                </p>
               </CardContent>
             </Card>
-
           </div>
 
-          {/* Match Suggestions */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center space-x-2">
@@ -279,145 +282,178 @@ const Dashboard = () => {
             </CardHeader>
 
             <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {matches.length === 0 ? (
+                <p className="text-sm text-muted-foreground py-4">
+                  No matches yet. Complete your profile and ensure your organ need and
+                  blood group are set — verified donors in our network will appear here.
+                </p>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {matches.map((match) => (
+                    <Card
+                      key={match.id}
+                      className="border border-border/50 hover:shadow-md transition-shadow"
+                    >
+                      <CardContent className="p-4">
+                        <div className="flex items-center justify-between mb-3">
+                          <Avatar className="h-10 w-10">
+                            <AvatarFallback className="bg-secondary text-white">
+                              {match.initials || getInitials(match.displayName)}
+                            </AvatarFallback>
+                          </Avatar>
 
-                {mockMatches.map(match => (
-                  <Card
-                    key={match.id}
-                    className="border border-border/50 hover:shadow-md transition-shadow"
-                  >
-                    <CardContent className="p-4">
-
-                      <div className="flex items-center justify-between mb-3">
-                        <Avatar className="h-10 w-10">
-                          <AvatarFallback className="bg-secondary text-white">
-                            {match.initials}
-                          </AvatarFallback>
-                        </Avatar>
-
-                        <Badge
-                          variant={match.urgency === "urgent" ? "destructive" : "secondary"}
-                          className={match.urgency === "urgent" ? "bg-orange-100 text-orange-800" : ""}
-                        >
-                          {match.urgency}
-                        </Badge>
-                      </div>
-
-                      <div className="space-y-2 mb-4">
-
-                        <div className="flex justify-between">
-                          <span className="text-sm text-muted-foreground">Blood Group:</span>
-                          <span className="font-semibold">{match.bloodGroup}</span>
+                          <Badge
+                            variant={
+                              match.urgency === "urgent" ? "destructive" : "secondary"
+                            }
+                            className={
+                              match.urgency === "urgent"
+                                ? "bg-orange-100 text-orange-800"
+                                : ""
+                            }
+                          >
+                            {match.urgency}
+                          </Badge>
                         </div>
 
-                        <div className="flex justify-between">
-                          <span className="text-sm text-muted-foreground">Compatibility:</span>
-                          <span className="font-semibold text-primary">{match.compatibility}%</span>
+                        <p className="text-sm font-medium mb-2 truncate">
+                          {match.displayName}
+                        </p>
+
+                        <div className="space-y-2 mb-4">
+                          <div className="flex justify-between">
+                            <span className="text-sm text-muted-foreground">Blood Group:</span>
+                            <span className="font-semibold">{match.bloodGroup ?? "—"}</span>
+                          </div>
+
+                          <div className="flex justify-between">
+                            <span className="text-sm text-muted-foreground">Organ:</span>
+                            <span className="text-sm capitalize">
+                              {match.organType ?? "—"}
+                            </span>
+                          </div>
+
+                          <div className="flex justify-between">
+                            <span className="text-sm text-muted-foreground">
+                              Compatibility:
+                            </span>
+                            <span className="font-semibold text-primary">
+                              {match.compatibility}%
+                            </span>
+                          </div>
+
+                          <div className="flex justify-between">
+                            <span className="text-sm text-muted-foreground">Location:</span>
+                            <span className="text-sm">{match.location}</span>
+                          </div>
+
+                          <div className="flex justify-between">
+                            <span className="text-sm text-muted-foreground">Distance:</span>
+                            <span className="text-sm">{match.distance}</span>
+                          </div>
+
+                          <div className="flex justify-between">
+                            <span className="text-sm text-muted-foreground">Donor status:</span>
+                            <span className="text-sm capitalize">
+                              {match.verificationStatus}
+                            </span>
+                          </div>
                         </div>
 
-                        <div className="flex justify-between">
-                          <span className="text-sm text-muted-foreground">Location:</span>
-                          <span className="text-sm">{match.location}</span>
+                        <div className="flex space-x-2">
+                          <Button size="sm" variant="outline" className="flex-1">
+                            View Details
+                          </Button>
+                          <Button size="sm" className="flex-1">
+                            Request Organ
+                          </Button>
                         </div>
-
-                        <div className="flex justify-between">
-                          <span className="text-sm text-muted-foreground">Distance:</span>
-                          <span className="text-sm">{match.distance}</span>
-                        </div>
-
-                      </div>
-
-                      <div className="flex space-x-2">
-                        <Button size="sm" variant="outline" className="flex-1">
-                          View Details
-                        </Button>
-                        <Button size="sm" className="flex-1">
-                          Request Organ
-                        </Button>
-                      </div>
-
-                    </CardContent>
-                  </Card>
-                ))}
-
-              </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
-
         </main>
 
-        {/* Right Sidebar */}
         <aside className="hidden lg:block w-80 bg-white border-l border-border min-h-screen p-4">
-
-          {/* Messages */}
           <Card className="mb-6">
             <CardHeader>
               <CardTitle className="text-sm">Recent Messages</CardTitle>
             </CardHeader>
-
             <CardContent className="space-y-3">
-
-              <div className="flex items-center space-x-3 p-2 rounded-lg hover:bg-muted/50 cursor-pointer">
-                <Avatar className="h-8 w-8">
-                  <AvatarFallback className="bg-primary text-white">DH</AvatarFallback>
-                </Avatar>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium truncate">Delhi Hospital</p>
-                  <p className="text-xs text-muted-foreground truncate">
-                    Your match request has been...
-                  </p>
-                </div>
-                <div className="text-xs text-muted-foreground">2m</div>
-              </div>
-
-              <div className="flex items-center space-x-3 p-2 rounded-lg hover:bg-muted/50 cursor-pointer">
-                <Avatar className="h-8 w-8">
-                  <AvatarFallback className="bg-secondary text-white">JD</AvatarFallback>
-                </Avatar>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium truncate">John Doe</p>
-                  <p className="text-xs text-muted-foreground truncate">
-                    Thank you for considering...
-                  </p>
-                </div>
-                <div className="text-xs text-muted-foreground">1h</div>
-              </div>
-
+              {(notifications?.items ?? []).length === 0 ? (
+                <p className="text-xs text-muted-foreground">No notifications yet.</p>
+              ) : (
+                notifications?.items.map((n) => (
+                  <div
+                    key={n.id}
+                    className="flex items-center space-x-3 p-2 rounded-lg hover:bg-muted/50 cursor-pointer"
+                  >
+                    <Avatar className="h-8 w-8">
+                      <AvatarFallback className="bg-primary text-white">
+                        {getInitials(n.title)}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{n.title}</p>
+                      <p className="text-xs text-muted-foreground truncate">{n.message}</p>
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      {formatNotificationTime(n.createdAt)}
+                    </div>
+                  </div>
+                ))
+              )}
             </CardContent>
           </Card>
 
-          {/* Verification */}
           <Card className="mb-6">
             <CardHeader>
               <CardTitle className="text-sm">Verification Status</CardTitle>
             </CardHeader>
-
             <CardContent className="space-y-3">
-
               <div className="flex items-center space-x-2">
-                <div className="h-2 w-2 bg-primary rounded-full"></div>
-                <span className="text-sm">Medical docs verified ✓</span>
+                <div
+                  className={`h-2 w-2 rounded-full ${
+                    profile?.medicalHistory ? "bg-primary" : "bg-orange-500"
+                  }`}
+                />
+                <span className="text-sm">
+                  Medical profile {profile?.medicalHistory ? "complete ✓" : "incomplete"}
+                </span>
               </div>
 
               <div className="flex items-center space-x-2">
-                <div className="h-2 w-2 bg-primary rounded-full"></div>
-                <span className="text-sm">Identity verified ✓</span>
+                <div
+                  className={`h-2 w-2 rounded-full ${
+                    profile?.bloodGroup ? "bg-primary" : "bg-orange-500"
+                  }`}
+                />
+                <span className="text-sm">
+                  Blood group {profile?.bloodGroup ? "on file ✓" : "missing"}
+                </span>
               </div>
 
               <div className="flex items-center space-x-2">
-                <div className="h-2 w-2 bg-orange-500 rounded-full"></div>
-                <span className="text-sm">Hospital linkage pending</span>
+                <div
+                  className={`h-2 w-2 rounded-full ${
+                    isVerified ? "bg-primary" : "bg-orange-500"
+                  }`}
+                />
+                <span className="text-sm">
+                  Hospital approval{" "}
+                  {isVerified ? "verified ✓" : capitalizeStatus(profile?.status ?? "pending")}
+                </span>
               </div>
-
             </CardContent>
           </Card>
 
-          {/* Tips */}
           <Card>
             <CardHeader>
               <CardTitle className="text-sm">Tips & Support</CardTitle>
             </CardHeader>
-
             <CardContent>
               <div className="space-y-3">
                 <p className="text-xs text-muted-foreground">
@@ -429,16 +465,12 @@ const Dashboard = () => {
               </div>
             </CardContent>
           </Card>
-
         </aside>
-
       </div>
 
-      {/* Mobile Bottom Navigation */}
       <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-border">
         <div className="grid grid-cols-5 gap-1 p-2">
-
-          {sidebarItems.slice(0, 5).map(item => {
+          {sidebarItems.slice(0, 5).map((item) => {
             const Icon = item.icon;
             return (
               <Button
@@ -458,20 +490,18 @@ const Dashboard = () => {
               </Button>
             );
           })}
-
         </div>
       </div>
 
-      {/* Floating Action Button - Mobile */}
       <Button
         size="lg"
         className="md:hidden fixed bottom-20 right-4 rounded-full h-14 w-14 shadow-lg"
       >
         <Heart className="h-6 w-6" />
       </Button>
-
     </div>
   );
 };
 
 export default Dashboard;
+

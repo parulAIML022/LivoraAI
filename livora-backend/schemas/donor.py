@@ -4,8 +4,13 @@ from pydantic import BaseModel, Field
 
 DonorStatus = Literal["pending", "verified", "active", "inactive"]
 
+# Allowed values for hospital/admin status updates only
+VALID_DONOR_STATUSES = frozenset({"pending", "verified", "active", "inactive"})
+
 
 class DonorUpdateRequest(BaseModel):
+    """Donor self-service fields — approval status is never accepted here."""
+
     bloodGroup: str | None = None
     organs: list[str] | None = None
     age: int | None = Field(None, ge=1, le=120)
@@ -13,7 +18,12 @@ class DonorUpdateRequest(BaseModel):
     phone: str | None = None
     address: str | None = None
     medicalHistory: str | None = None
-    status: DonorStatus | None = None
+
+
+class DonorStatusUpdateRequest(BaseModel):
+    """Hospital/admin only — updates donor approval status."""
+
+    status: DonorStatus
 
 
 class DocumentInfo(BaseModel):

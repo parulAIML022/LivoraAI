@@ -71,14 +71,21 @@ def test_signup_only_creates_user_then_donor_profile_via_put():
             "address": "Delhi, India",
             "age": 28,
             "gender": "female",
-            "status": "active",
         },
     )
     assert updated.status_code == 200
     assert updated.json()["bloodGroup"] == "O+"
+    assert updated.json()["status"] == "pending"
     assert "kidney" in updated.json()["organs"]
     assert updated.json()["age"] == 28
     assert updated.json()["profileCompletion"] > 0
+
+    rejected = client.put(
+        "/api/donors/me",
+        headers=headers,
+        json={"status": "active"},
+    )
+    assert rejected.status_code == 422
 
     logout = client.post("/api/auth/logout", headers=headers)
     assert logout.status_code == 200
@@ -133,11 +140,67 @@ def test_recipient_profile_via_put():
     assert profile.status_code == 200
     assert profile.json()["organNeeded"] == "kidney"
     assert profile.json()["bloodGroup"] == "A+"
+    assert profile.json()["status"] == "pending"
+
+    rejected = client.put(
+        "/api/recipients/me",
+        headers=headers,
+        json={"status": "active"},
+    )
+    assert rejected.status_code == 422
 
 
 def test_protected_route_rejects_anonymous():
     r = client.get("/api/donors/me")
     assert r.status_code == 401
+
+
+def test_hospital_can_update_donor_status():
+    donor_email = _unique_email()
+    donor_signup = client.post(
+        "/api/auth/signup",
+        json={
+            "fullName": "Donor For Status",
+            "email": donor_email,
+            "password": "testpass123",
+            "role": "donor",
+        },
+    )
+    donor_id = donor_signup.json()["userId"]
+    client.put(
+        "/api/donors/me",
+        headers={"Authorization": f"Bearer {donor_signup.json()['access_token']}"},
+        json={"bloodGroup": "A+"},
+    )
+
+    hospital_email = _unique_email()
+    hospital_signup = client.post(
+        "/api/auth/signup",
+        json={
+            "fullName": "City Hospital",
+            "email": hospital_email,
+            "password": "testpass123",
+            "role": "hospital",
+        },
+    )
+    hospital_headers = {
+        "Authorization": f"Bearer {hospital_signup.json()['access_token']}"
+    }
+
+    patched = client.patch(
+        f"/api/donors/{donor_id}/status",
+        headers=hospital_headers,
+        json={"status": "verified"},
+    )
+    assert patched.status_code == 200
+    assert patched.json()["status"] == "verified"
+
+    donor_cannot = client.patch(
+        f"/api/donors/{donor_id}/status",
+        headers={"Authorization": f"Bearer {donor_signup.json()['access_token']}"},
+        json={"status": "active"},
+    )
+    assert donor_cannot.status_code == 403
 
 
 def test_role_mismatch_on_donor_route():

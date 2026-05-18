@@ -31,3 +31,7 @@ def get_recipients_collection():
 
 def get_hospitals_collection():
     return get_database()["hospitals"]
+
+
+def get_notifications_collection():
+    return get_database()["notifications"]

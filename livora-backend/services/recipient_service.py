@@ -5,7 +5,11 @@ from fastapi import HTTPException, status
 
 from database.connection import get_recipients_collection, get_users_collection
 from models.recipient import recipient_document, serialize_recipient
-from schemas.recipient import RecipientUpdateRequest
+from schemas.recipient import (
+    RecipientStatus,
+    RecipientUpdateRequest,
+    VALID_RECIPIENT_STATUSES,
+)
 
 
 def _ensure_recipient_profile(user_id: str) -> dict:
@@ -50,3 +54,75 @@ def update_recipient_profile(user_id: str, payload: RecipientUpdateRequest) -> d
     update_data["updatedAt"] = datetime.now(timezone.utc)
     recipients.update_one({"userId": user_id}, {"$set": update_data})
     return serialize_recipient(_ensure_recipient_profile(user_id))
+
+
+def update_recipient_status_by_user_id(
+    target_user_id: str,
+    new_status: RecipientStatus,
+) -> dict:
+    """Hospital/admin: set recipient approval status."""
+    if new_status not in VALID_RECIPIENT_STATUSES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid status value",
+        )
+
+    recipients = get_recipients_collection()
+    recipient = recipients.find_one({"userId": target_user_id})
+    if not recipient:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Recipient profile not found",
+        )
+
+    old_status = recipient.get("status", "pending")
+    recipients.update_one(
+        {"userId": target_user_id},
+        {
+            "$set": {
+                "status": new_status,
+                "updatedAt": datetime.now(timezone.utc),
+            }
+        },
+    )
+
+    if old_status != new_status:
+        _notify_recipient_status_change(target_user_id, new_status)
+
+    return serialize_recipient(recipients.find_one({"userId": target_user_id}))
+
+
+def _notify_recipient_status_change(user_id: str, new_status: str) -> None:
+    from services.notification_service import create_notification
+
+    messages = {
+        "verified": (
+            "Recipient profile verified",
+            "Your recipient profile has been verified. AI matching is now enabled.",
+            "recipient_verified",
+        ),
+        "active": (
+            "Active transplant request",
+            "Your recipient profile is active. Urgent matches may be prioritized.",
+            "match_found",
+        ),
+        "inactive": (
+            "Recipient account inactive",
+            "Your recipient profile has been marked inactive.",
+            "status_update",
+        ),
+        "pending": (
+            "Recipient review pending",
+            "Your profile is awaiting hospital approval.",
+            "status_update",
+        ),
+    }
+    title, message, ntype = messages.get(
+        new_status,
+        (
+            "Recipient status updated",
+            f"Your recipient status is now {new_status}.",
+            "status_update",
+        ),
+    )
+    create_notification(user_id, title, message, ntype, {"status": new_status})

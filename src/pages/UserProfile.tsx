@@ -6,12 +6,16 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import ProfileLogoutButton from "@/components/ProfileLogoutButton";
 import { useAuth } from "@/contexts/AuthContext";
+import { useDashboardSession } from "@/hooks/useDashboardSession";
+import { getRoleLabel } from "@/lib/userDisplay";
 import { ApiError } from "@/lib/api";
 import { getMyDonorProfile, updateMyDonorProfile } from "@/services/donorService";
 
 export default function UserProfile() {
   const { session } = useAuth();
+  const { fullName, email, roleLabel } = useDashboardSession();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const isDonor = session?.role === "donor";
@@ -31,21 +35,21 @@ export default function UserProfile() {
   });
 
   useEffect(() => {
-    if (session) {
-      setProfile((p) => ({ ...p, name: session.fullName }));
+    if (fullName) {
+      setProfile((p) => ({ ...p, name: fullName }));
     }
-  }, [session]);
+  }, [fullName]);
 
   useEffect(() => {
     if (donor) {
       setProfile({
-        name: session?.fullName || "",
+        name: fullName || "",
         phone: donor.phone || "",
         address: donor.address || "",
         history: donor.medicalHistory || "No history available",
       });
     }
-  }, [donor, session]);
+  }, [donor, fullName]);
 
   const handleSave = async () => {
     if (!isDonor) {
@@ -73,7 +77,14 @@ export default function UserProfile() {
       <div className="max-w-3xl mx-auto px-4">
         <Card className="mb-6">
           <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="text-2xl font-bold">User Profile</CardTitle>
+            <div>
+              <CardTitle className="text-2xl font-bold">User Profile</CardTitle>
+              {email && (
+                <p className="text-sm text-muted-foreground mt-1">
+                  {email} · {roleLabel || getRoleLabel(session?.role)}
+                </p>
+              )}
+            </div>
             <Button variant="outline" onClick={() => navigate(-1)}>
               Back
             </Button>
@@ -124,6 +135,19 @@ export default function UserProfile() {
           </CardHeader>
           <CardContent>
             <p className="text-gray-700">{profile.history || "No history available"}</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg font-semibold">Account</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Sign out of your account. You will return to the role selection screen to sign in
+              again.
+            </p>
+            <ProfileLogoutButton />
           </CardContent>
         </Card>
       </div>

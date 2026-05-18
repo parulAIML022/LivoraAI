@@ -1,6 +1,14 @@
 import { apiRequest } from "@/lib/api";
 import type { AuthSession } from "@/lib/auth-storage";
 
+export interface AuthUser {
+  userId: string;
+  fullName: string;
+  email: string;
+  role: string;
+  createdAt: string;
+}
+
 export interface TokenResponse {
   access_token: string;
   token_type: string;
@@ -62,12 +70,6 @@ export function logout(): Promise<{ message: string }> {
   });
 }
 
-export function getMe(): Promise<{
-  userId: string;
-  fullName: string;
-  email: string;
-  role: string;
-  createdAt: string;
-}> {
-  return apiRequest("/api/auth/me", { auth: true });
+export function getMe(): Promise<AuthUser> {
+  return apiRequest<AuthUser>("/api/auth/me", { auth: true });
 }

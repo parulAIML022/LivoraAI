@@ -18,10 +18,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { useAuth } from "@/contexts/AuthContext";
+import DashboardNotificationBell from "@/components/DashboardNotificationBell";
+import DashboardUserNav from "@/components/DashboardUserNav";
+import { useDashboardSession } from "@/hooks/useDashboardSession";
+import { useLogout } from "@/hooks/useLogout";
+import { capitalizeStatus } from "@/lib/userDisplay";
 import { ApiError } from "@/lib/api";
 import {
   getMyDonorProfile,
@@ -33,7 +36,8 @@ import {
 const DonorDashboard = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { session, logout } = useAuth();
+  const handleLogout = useLogout();
+  const { fullName, roleLabel } = useDashboardSession();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("donate");
   const [isSaving, setIsSaving] = useState(false);
@@ -69,14 +73,6 @@ const DonorDashboard = () => {
   }, [donor]);
 
   const goToProfile = () => navigate("/profile");
-
-  const initials =
-    session?.fullName
-      ?.split(" ")
-      .map((n) => n[0])
-      .join("")
-      .slice(0, 2)
-      .toUpperCase() || "DN";
 
   const sidebarItems = [
     { id: "donate", label: "Donate Organ", icon: Upload },
@@ -127,11 +123,6 @@ const DonorDashboard = () => {
     }
   };
 
-  const handleLogout = async () => {
-    await logout();
-    navigate("/signin");
-  };
-
   const renderSidebar = (mobile = false) =>
     sidebarItems.map((item) => {
       const Icon = item.icon;
@@ -179,7 +170,10 @@ const DonorDashboard = () => {
     <div className="min-h-screen bg-background flex">
       <aside className="hidden md:block w-64 bg-white border-r border-border min-h-screen p-4 space-y-2">
         {renderSidebar()}
-        <Button variant="outline" className="w-full mt-4" onClick={handleLogout}>
+        <Button
+          className="w-full mt-4 bg-blue-600 text-white hover:bg-blue-700"
+          onClick={() => void handleLogout()}
+        >
           <LogOut className="h-4 w-4 mr-2" />
           Log out
         </Button>
@@ -203,14 +197,8 @@ const DonorDashboard = () => {
           </div>
 
           <div className="flex items-center space-x-3">
-            <Button variant="ghost" size="icon">
-              <Bell />
-            </Button>
-            <div className="cursor-pointer" onClick={goToProfile}>
-              <Avatar className="h-8 w-8">
-                <AvatarFallback className="bg-primary text-white">{initials}</AvatarFallback>
-              </Avatar>
-            </div>
+            <DashboardNotificationBell />
+            <DashboardUserNav onProfileClick={goToProfile} />
           </div>
         </header>
 
@@ -232,15 +220,17 @@ const DonorDashboard = () => {
               <div className="flex flex-wrap items-center justify-between gap-4">
                 <div>
                   <h1 className="text-2xl font-bold text-primary mb-2">
-                    Welcome, {session?.fullName || "Donor"}! 👋
+                    Welcome, {fullName || "Donor"}! 👋
                   </h1>
                   <p className="text-muted-foreground">
-                    You’re registered as an Organ Donor. Keep your details up-to-date to help save
-                    lives.
+                    {roleLabel} · Profile {profile.profileCompletion}% complete
+                    {profile.organs.length > 0
+                      ? ` · Registered: ${profile.organs.join(", ")}`
+                      : ""}
                   </p>
                 </div>
-                <Badge variant="secondary" className="capitalize">
-                  Status: {profile.status}
+                <Badge variant="secondary">
+                  Status: {capitalizeStatus(profile.status)}
                 </Badge>
               </div>
 
