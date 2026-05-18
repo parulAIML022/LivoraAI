@@ -1,19 +1,12 @@
 import { apiRequest } from "@/lib/api";
 
-export interface MatchSuggestion {
-  id: string;
-  counterpartUserId: string;
-  displayName: string;
-  initials: string;
+export interface DonorMatch {
+  donorName: string;
   bloodGroup?: string | null;
-  compatibility: number;
-  location: string;
-  distance: string;
-  distanceKm: number;
-  urgency: string;
-  organType?: string | null;
-  verificationStatus: string;
-  role: string;
+  organ?: string | null;
+  location?: string | null;
+  status: string;
+  compatibilityScore: number;
 }
 
 export interface MatchStats {
@@ -26,16 +19,10 @@ export interface MatchStats {
   activeRecipientRequests?: number;
 }
 
-export interface UrgentAlert {
-  message: string;
-  location?: string | null;
-  matchId?: string | null;
-}
-
 export interface MatchingResponse {
-  matches: MatchSuggestion[];
+  matches: DonorMatch[];
+  message?: string | null;
   stats: MatchStats;
-  urgentAlert?: UrgentAlert | null;
 }
 
 export function getMyMatches(): Promise<MatchingResponse> {

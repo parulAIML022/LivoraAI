@@ -98,8 +98,9 @@ def test_matching_recipient_and_notifications():
     assert len(body["matches"]) >= 1
     match = body["matches"][0]
     assert match["bloodGroup"] == "O+"
-    assert match["compatibility"] >= 50
-    assert "distance" in match
+    assert match["compatibilityScore"] == 95
+    assert match["donorName"]
+    assert match["organ"] == "kidney"
 
     me = client.get("/api/matching/me", headers=recipient_headers)
     assert me.status_code == 200

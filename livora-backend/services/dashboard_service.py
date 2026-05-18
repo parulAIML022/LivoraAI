@@ -99,7 +99,6 @@ def _admin_stats() -> dict:
 
 
 def _count_platform_matches() -> int:
-    """Approximate total compatible pairs on the platform."""
-    from services.matching_service import _get_staff_matching_overview
+    from services.matching_service import count_platform_manual_matches
 
-    return _get_staff_matching_overview()["stats"]["totalMatches"]
+    return count_platform_manual_matches()

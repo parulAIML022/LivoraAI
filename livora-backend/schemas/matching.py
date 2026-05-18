@@ -1,20 +1,13 @@
 from pydantic import BaseModel, Field
 
 
-class MatchSuggestion(BaseModel):
-    id: str
-    counterpartUserId: str
-    displayName: str
-    initials: str
+class DonorMatchItem(BaseModel):
+    donorName: str
     bloodGroup: str | None = None
-    compatibility: int
-    location: str
-    distance: str
-    distanceKm: float
-    urgency: str
-    organType: str | None = None
-    verificationStatus: str
-    role: str = Field(description="donor or recipient — the matched party's role")
+    organ: str | None = None
+    location: str | None = None
+    status: str
+    compatibilityScore: int = 95
 
 
 class MatchStats(BaseModel):
@@ -27,13 +20,7 @@ class MatchStats(BaseModel):
     activeRecipientRequests: int = 0
 
 
-class UrgentAlert(BaseModel):
-    message: str
-    location: str | None = None
-    matchId: str | None = None
-
-
 class MatchingResponse(BaseModel):
-    matches: list[MatchSuggestion] = []
+    matches: list[DonorMatchItem] = []
+    message: str | None = None
     stats: MatchStats = Field(default_factory=MatchStats)
-    urgentAlert: UrgentAlert | None = None

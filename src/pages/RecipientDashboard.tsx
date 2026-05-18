@@ -69,7 +69,8 @@ const Dashboard = () => {
 
   const matches = matching?.matches ?? [];
   const stats = matching?.stats;
-  const urgentAlert = matching?.urgentAlert;
+  const noMatchesMessage =
+    matching?.message ?? "No compatible donors found.";
 
   const goToProfile = () => {
     navigate("/profile");
@@ -209,20 +210,6 @@ const Dashboard = () => {
             </CardContent>
           </Card>
 
-          {urgentAlert && (
-            <Card className="mb-6 border-orange-200 bg-orange-50">
-              <CardContent className="p-4">
-                <div className="flex items-center space-x-2 text-orange-800">
-                  <span>🚨</span>
-                  <span className="font-medium">{urgentAlert.message}</span>
-                  <Button size="sm" className="ml-auto">
-                    View Details
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
             <Card>
               <CardHeader className="pb-2">
@@ -283,41 +270,29 @@ const Dashboard = () => {
 
             <CardContent>
               {matches.length === 0 ? (
-                <p className="text-sm text-muted-foreground py-4">
-                  No matches yet. Complete your profile and ensure your organ need and
-                  blood group are set — verified donors in our network will appear here.
-                </p>
+                <p className="text-sm text-muted-foreground py-4">{noMatchesMessage}</p>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {matches.map((match) => (
+                  {matches.map((match, index) => (
                     <Card
-                      key={match.id}
+                      key={`${match.donorName}-${match.organ}-${index}`}
                       className="border border-border/50 hover:shadow-md transition-shadow"
                     >
                       <CardContent className="p-4">
                         <div className="flex items-center justify-between mb-3">
                           <Avatar className="h-10 w-10">
                             <AvatarFallback className="bg-secondary text-white">
-                              {match.initials || getInitials(match.displayName)}
+                              {getInitials(match.donorName)}
                             </AvatarFallback>
                           </Avatar>
 
-                          <Badge
-                            variant={
-                              match.urgency === "urgent" ? "destructive" : "secondary"
-                            }
-                            className={
-                              match.urgency === "urgent"
-                                ? "bg-orange-100 text-orange-800"
-                                : ""
-                            }
-                          >
-                            {match.urgency}
+                          <Badge variant="secondary" className="capitalize">
+                            {match.status}
                           </Badge>
                         </div>
 
                         <p className="text-sm font-medium mb-2 truncate">
-                          {match.displayName}
+                          {match.donorName}
                         </p>
 
                         <div className="space-y-2 mb-4">
@@ -329,7 +304,7 @@ const Dashboard = () => {
                           <div className="flex justify-between">
                             <span className="text-sm text-muted-foreground">Organ:</span>
                             <span className="text-sm capitalize">
-                              {match.organType ?? "—"}
+                              {match.organ ?? "—"}
                             </span>
                           </div>
 
@@ -338,26 +313,15 @@ const Dashboard = () => {
                               Compatibility:
                             </span>
                             <span className="font-semibold text-primary">
-                              {match.compatibility}%
+                              {match.compatibilityScore}%
                             </span>
                           </div>
 
                           <div className="flex justify-between">
                             <span className="text-sm text-muted-foreground">Location:</span>
-                            <span className="text-sm">{match.location}</span>
+                            <span className="text-sm">{match.location ?? "—"}</span>
                           </div>
 
-                          <div className="flex justify-between">
-                            <span className="text-sm text-muted-foreground">Distance:</span>
-                            <span className="text-sm">{match.distance}</span>
-                          </div>
-
-                          <div className="flex justify-between">
-                            <span className="text-sm text-muted-foreground">Donor status:</span>
-                            <span className="text-sm capitalize">
-                              {match.verificationStatus}
-                            </span>
-                          </div>
                         </div>
 
                         <div className="flex space-x-2">
