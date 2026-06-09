@@ -23,8 +23,10 @@ from services.auth_service import ensure_indexes
 async def lifespan(_app: FastAPI):
     logging.basicConfig(level=logging.INFO)
     logging.getLogger("livora.matching").setLevel(logging.INFO)
+    logging.getLogger("livora.mongo").setLevel(logging.INFO)
+    logging.getLogger("livora.auth").setLevel(logging.INFO)
     UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
-    get_client().admin.command("ping")
+    get_client()
     ensure_indexes()
     yield
 
